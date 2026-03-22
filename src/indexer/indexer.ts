@@ -63,8 +63,12 @@ export async function indexProject(
       // Insert into project_files
       q.insertProjectFile.run(file.relativePath, file.type, ext, 0);
 
-      // Only parse code files with a detected language
-      if (file.type !== 'code' || !file.language) {
+      // Only parse files with a detected language (code + test files)
+      if (!file.language) {
+        skippedFiles++;
+        continue;
+      }
+      if (file.type !== 'code' && file.type !== 'test') {
         skippedFiles++;
         continue;
       }

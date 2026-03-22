@@ -37,6 +37,16 @@ export function extract(
       for (let row = node.startPosition.row; row <= node.endPosition.row; row++) {
         setLineType(row + 1, 'comment');
       }
+      // Extract identifier-like terms from comment text (domain terms, class names)
+      const commentText = node.text;
+      const identRegex = /\b([A-Z][a-zA-Z0-9]{2,})\b/g;
+      let match;
+      while ((match = identRegex.exec(commentText)) !== null) {
+        const term = match[1];
+        if (!config.isKeyword(term)) {
+          items.push({ term, lineNumber });
+        }
+      }
       return; // don't recurse into comments
     }
 
@@ -45,9 +55,17 @@ export function extract(
       const source = config.extractImportSource(node);
       if (source) {
         imports.push({ source, lineNumber });
+        // Also extract identifiers from import path segments
+        // e.g., "HRIS.Modules.HrMaster.Domain.Aggregates" → each segment as a term
+        const segments = source.split(/[./\\]/);
+        for (const seg of segments) {
+          if (seg.length >= 2 && /^[A-Za-z_]/.test(seg) && !config.isKeyword(seg)) {
+            items.push({ term: seg, lineNumber });
+          }
+        }
       }
       setLineType(lineNumber, 'code');
-      return;
+      // Don't return — still recurse into import nodes to capture identifiers
     }
 
     // Type declarations
@@ -85,18 +103,12 @@ export function extract(
     }
 
     // Leaf identifier nodes — extract terms
-    if (node.childCount === 0 && node.type === 'identifier') {
-      const term = node.text;
-      if (term.length >= 2 && !config.isKeyword(term)) {
-        items.push({ term, lineNumber });
-      }
-      if (!processedLines.has(lineNumber)) {
-        setLineType(lineNumber, 'code');
-      }
-    }
-
-    // Also extract type_identifier nodes (common in C#, Go, Java)
-    if (node.childCount === 0 && node.type === 'type_identifier') {
+    if (node.childCount === 0 && (
+      node.type === 'identifier' ||
+      node.type === 'type_identifier' ||
+      node.type === 'property_identifier' ||
+      node.type === 'shorthand_property_identifier_pattern'
+    )) {
       const term = node.text;
       if (term.length >= 2 && !config.isKeyword(term)) {
         items.push({ term, lineNumber });
