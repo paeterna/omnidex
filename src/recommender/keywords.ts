@@ -96,6 +96,9 @@ export function extractKeywords(query: string): string[] {
   // Split on whitespace and punctuation (but preserve / and \ for path detection)
   const tokens = query.split(/[\s,;:!?'"()\[\]{}<>=+*&^%$#@|~`]+/).filter(Boolean);
 
+  // Collect non-stop-word raw tokens for compound generation
+  const rawNonStopTokens: string[] = [];
+
   for (const token of tokens) {
     // Check if it's a file path
     const pathParts = splitFilePath(token);
@@ -114,6 +117,34 @@ export function extractKeywords(query: string): string[] {
       const camelParts = splitCamelCase(sub);
       for (const part of camelParts) {
         addUnique(part);
+      }
+    }
+
+    // Track raw non-stop tokens for compound keyword generation
+    const lower = token.toLowerCase();
+    if (!STOP_WORDS.has(lower) && lower.length >= 2) {
+      rawNonStopTokens.push(lower);
+    }
+  }
+
+  // Generate compound keywords from adjacent non-stop-word tokens
+  // e.g., ["department", "versioning"] → "departmentversioning", "departmentversion"
+  // This helps match PascalCase identifiers like DepartmentVersion
+  for (let i = 0; i < rawNonStopTokens.length - 1; i++) {
+    const a = rawNonStopTokens[i];
+    const b = rawNonStopTokens[i + 1];
+    // Full compound
+    addUnique(a + b);
+    // Stemmed compounds: remove common suffixes from second word
+    for (const suffix of ['ing', 'tion', 'sion', 'ment', 'ness', 'ed', 's', 'er', 'ly']) {
+      if (b.endsWith(suffix) && b.length > suffix.length + 2) {
+        addUnique(a + b.slice(0, -suffix.length));
+      }
+    }
+    // Also try removing suffix from first word
+    for (const suffix of ['ing', 'tion', 'sion', 'ment', 'ness', 'ed', 's', 'er', 'ly']) {
+      if (a.endsWith(suffix) && a.length > suffix.length + 2) {
+        addUnique(a.slice(0, -suffix.length) + b);
       }
     }
   }
