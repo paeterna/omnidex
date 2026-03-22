@@ -8,13 +8,16 @@ import { PRODUCT_NAME, PRODUCT_VERSION } from './constants.js';
 import { registerTools, handleToolCall } from './tools/registry.js';
 
 export function createServer() {
+  // Register all tools eagerly so they're available for both list and call
+  const allTools = registerTools();
+
   const server = new Server(
     { name: PRODUCT_NAME.toLowerCase(), version: PRODUCT_VERSION },
     { capabilities: { tools: {} } }
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: registerTools(),
+    tools: allTools,
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
