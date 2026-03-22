@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "postbuild": "mkdir -p build/db && cp src/db/schema.sql build/db/schema.sql",
     "dev": "tsc --watch",
     "start": "node build/index.js"
   },
