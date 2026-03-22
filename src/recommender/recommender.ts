@@ -76,6 +76,29 @@ export function recommend(db: Database.Database, query: string, limit = 5): Reco
   // Phase 3: Graph expansion
   phaseGraphExpansion(db, scores);
 
+  // Phase 4: Apply test file penalty — test files are useful but should rank below source files
+  // unless the query explicitly mentions "test"
+  const queryMentionsTest = keywords.some((k) => k === 'test' || k === 'tests' || k === 'testing' || k === 'spec');
+  if (!queryMentionsTest) {
+    for (const entry of scores.values()) {
+      const lowerPath = entry.path.toLowerCase();
+      if (
+        lowerPath.startsWith('tests/') ||
+        lowerPath.startsWith('test/') ||
+        lowerPath.includes('/tests/') ||
+        lowerPath.includes('/test/') ||
+        lowerPath.includes('/__tests__/') ||
+        lowerPath.includes('/spec/') ||
+        /\.(test|spec)\.[^/]+$/.test(lowerPath) ||
+        lowerPath.endsWith('tests.cs') ||
+        lowerPath.endsWith('test.cs') ||
+        lowerPath.endsWith('.spec.ts')
+      ) {
+        entry.score = Math.round(entry.score * 0.3); // 70% penalty
+      }
+    }
+  }
+
   // Sort and take top N
   const sorted = [...scores.values()].sort((a, b) => b.score - a.score).slice(0, limit);
 
