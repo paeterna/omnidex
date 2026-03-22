@@ -63,9 +63,34 @@ export function register() {
           });
         }
 
-        const output = files.map((f) => f.path).join('\n');
+        // Strip common path prefix to reduce token usage
+        const paths = files.map((f) => f.path);
+        let commonPrefix = '';
+        if (paths.length > 1) {
+          const first = paths[0];
+          for (let i = 0; i < first.length; i++) {
+            const char = first[i];
+            if (paths.every((p) => p[i] === char)) {
+              commonPrefix += char;
+            } else {
+              break;
+            }
+          }
+          // Trim to last directory separator
+          const lastSlash = commonPrefix.lastIndexOf('/');
+          commonPrefix = lastSlash > 0 ? commonPrefix.substring(0, lastSlash + 1) : '';
+        }
+
+        const shortPaths = commonPrefix.length > 10
+          ? paths.map((p) => p.substring(commonPrefix.length))
+          : paths;
+
+        const header = commonPrefix.length > 10
+          ? `${files.length} files (under ${commonPrefix}):`
+          : `${files.length} files:`;
+
         return {
-          content: [{ type: 'text' as const, text: `${files.length} files:\n${output}` }],
+          content: [{ type: 'text' as const, text: `${header}\n${shortPaths.join('\n')}` }],
         };
       } finally {
         db.close();
