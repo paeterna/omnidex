@@ -24,7 +24,17 @@ export function register() {
       db.prepare('INSERT INTO actions (action_type, query, files, created_at) VALUES (?, ?, ?, ?)').run(
         'continue', args.query, JSON.stringify(filePaths), Date.now()
       );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      const compactResult: any = {
+        ok: result.ok,
+        confidence: result.confidence,
+        max_supplementary_greps: result.max_supplementary_greps,
+        max_supplementary_files: result.max_supplementary_files,
+        recommended_files: result.recommended_files.map((f: any) => f.file),
+        query: result.query,
+      };
+      if (result.needs_project) compactResult.needs_project = true;
+      if (result.skip) compactResult.skip = true;
+      return { content: [{ type: 'text' as const, text: JSON.stringify(compactResult) }] };
     } finally {
       db.close();
     }

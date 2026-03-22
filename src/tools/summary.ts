@@ -38,8 +38,8 @@ export function register() {
           fileCounts[f.type] = (fileCounts[f.type] || 0) + 1;
         }
 
-        // Top 10 types (by occurrence count)
-        const topTypes = db
+        // Top types (by occurrence count), deduplicated by name, limited to 5
+        const topTypesRaw = db
           .prepare(`
             SELECT t.name, t.kind, COUNT(o.item_id) as occurrences
             FROM types t
@@ -47,11 +47,18 @@ export function register() {
             LEFT JOIN occurrences o ON o.item_id = i.id
             GROUP BY t.id
             ORDER BY occurrences DESC
-            LIMIT 10
+            LIMIT 20
           `)
           .all() as Array<{ name: string; kind: string; occurrences: number }>;
 
-        // Top 10 entry points (files with most inbound edges)
+        const seenTypes = new Set<string>();
+        const topTypes = topTypesRaw.filter((t) => {
+          if (seenTypes.has(t.name)) return false;
+          seenTypes.add(t.name);
+          return true;
+        }).slice(0, 5);
+
+        // Top 5 entry points (files with most inbound edges)
         const topEntryPoints = db
           .prepare(`
             SELECT f.path, COUNT(e.source_file_id) as inbound
@@ -59,7 +66,7 @@ export function register() {
             JOIN files f ON e.target_file_id = f.id
             GROUP BY e.target_file_id
             ORDER BY inbound DESC
-            LIMIT 10
+            LIMIT 5
           `)
           .all() as Array<{ path: string; inbound: number }>;
 

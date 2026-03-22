@@ -141,6 +141,13 @@ export function register() {
         const projectName = subpath || (path.split('/').pop() ?? '');
         const lines = [`${projectName}/`, ...renderTree(tree, '', 0, depth)];
 
+        if (lines.length > 200) {
+          const truncated = lines.slice(0, 200).join('\n');
+          return {
+            content: [{ type: 'text' as const, text: truncated + '\n\n... truncated (' + lines.length + ' total lines). Use subpath parameter to explore specific directories.' }],
+          };
+        }
+
         return {
           content: [{ type: 'text' as const, text: lines.join('\n') }],
         };

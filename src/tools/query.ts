@@ -99,8 +99,22 @@ export function register() {
           results = results.filter((r) => minimatch(r.file, fileFilter));
         }
 
+        // Group results by file for compact output
+        const grouped = new Map<string, Array<{ line: number; line_type: string }>>();
+        for (const r of results) {
+          if (!grouped.has(r.file)) grouped.set(r.file, []);
+          grouped.get(r.file)!.push({ line: r.line, line_type: r.line_type });
+        }
+
+        const fileCount = grouped.size;
+        const lines: string[] = [`Found ${results.length} matches for "${term}" in ${fileCount} files:\n`];
+        for (const [file, occurrences] of grouped) {
+          lines.push(file);
+          lines.push('  ' + occurrences.map(o => `:${o.line} (${o.line_type})`).join(' '));
+        }
+
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify(results) }],
+          content: [{ type: 'text' as const, text: lines.join('\n') }],
         };
       } finally {
         db.close();

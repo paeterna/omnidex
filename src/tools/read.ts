@@ -9,6 +9,7 @@ export function register() {
     properties: {
       path: { type: 'string', description: 'Project path' },
       file: { type: 'string', description: 'Relative file path, optionally with ::symbol (e.g. src/auth.ts::handleLogin)' },
+      max_lines: { type: 'number', description: 'Max lines to return for full file reads (default: 200). Use file::symbol for targeted reads.' },
     },
     required: ['path', 'file'],
   }, async (args) => {
@@ -17,6 +18,7 @@ export function register() {
 
     const [relPath, symbolName] = fileArg.includes('::') ? fileArg.split('::') : [fileArg, null];
     const absPath = join(projectPath, relPath);
+    const maxLines = (args.max_lines as number) || 200;
 
     const content = readFileSync(absPath, 'utf-8');
     const lines = content.split('\n');
@@ -26,6 +28,12 @@ export function register() {
       const db = openDatabase(projectPath);
       db.prepare('INSERT INTO actions (action_type, query, files, created_at) VALUES (?, ?, ?, ?)').run('read', null, JSON.stringify([relPath]), Date.now());
       db.close();
+
+      // Truncate if exceeds max_lines
+      if (lines.length > maxLines) {
+        const truncated = lines.slice(0, maxLines).map((l, i) => `${i + 1}\t${l}`).join('\n');
+        return { content: [{ type: 'text' as const, text: truncated + '\n\n... truncated at ' + maxLines + ' lines (' + lines.length + ' total). Use file::symbol notation to read specific symbols, or increase max_lines.' }] };
+      }
 
       // Return numbered lines
       const numbered = lines.map((l, i) => `${i + 1}\t${l}`).join('\n');

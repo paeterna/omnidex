@@ -63,14 +63,9 @@ export function register() {
           });
         }
 
-        const result = files.map((f) => ({
-          path: f.path,
-          type: f.type,
-          extension: f.extension,
-        }));
-
+        const output = files.map((f) => f.path).join('\n');
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          content: [{ type: 'text' as const, text: `${files.length} files:\n${output}` }],
         };
       } finally {
         db.close();
