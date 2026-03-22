@@ -25,7 +25,7 @@ export function register() {
 
     try {
       const result = execSync(
-        `rg -n --max-count ${maxHits} --glob '!node_modules' --glob '!.git' --glob '!.omnidex' --glob '!.aidex' --glob '!.dual-graph' -e '${pattern.replace(/'/g, "'\\''")}'`,
+        `rg -n --max-count ${maxHits} --glob '!node_modules' --glob '!.git' --glob '!.omnidex' -e '${pattern.replace(/'/g, "'\\''")}'`,
         { cwd: projectPath, maxBuffer: 1024 * 1024, timeout: 10000, encoding: 'utf-8' }
       );
 

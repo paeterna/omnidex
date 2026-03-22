@@ -12,7 +12,7 @@ export interface ScannedFile {
 }
 
 const ALWAYS_SKIP = new Set([
-  'node_modules', '.git', '.omnidex', '.aidex', '.dual-graph',
+  'node_modules', '.git', '.omnidex',
   'bin', 'obj', 'dist', '.vs', '.idea',
 ]);
 

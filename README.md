@@ -2,7 +2,7 @@
 
 Code indexing + context recommendation MCP server for Claude Code.
 
-Omnidex replaces tools like AiDex and dual-graph with a single, transparent, zero-telemetry MCP server. It indexes your codebase using tree-sitter, builds a file relationship graph, and recommends which files to read based on your query — so Claude spends tokens on the right code, not exploring.
+A single, transparent, zero-telemetry MCP server for code indexing and context recommendation. It indexes your codebase using tree-sitter, builds a file relationship graph, and recommends which files to read based on your query — so Claude spends tokens on the right code, not exploring.
 
 ## Features
 
