@@ -1,9 +1,32 @@
 import { TOOL_PREFIX } from '../constants.js';
+import { register as registerScan } from './scan.js';
+import { register as registerUpdate } from './update.js';
+import { register as registerQuery } from './query.js';
+import { register as registerSignature } from './signature.js';
+import { register as registerSignatures } from './signatures.js';
+import { register as registerTree } from './tree.js';
+import { register as registerFiles } from './files.js';
+import { register as registerSummary } from './summary.js';
+import { register as registerDescribe } from './describe.js';
 
 const tools: Array<{ name: string; description: string; inputSchema: object }> = [];
 const handlers = new Map<string, (args: Record<string, unknown>) => Promise<unknown>>();
 
+let registered = false;
+
 export function registerTools() {
+  if (!registered) {
+    registerScan();
+    registerUpdate();
+    registerQuery();
+    registerSignature();
+    registerSignatures();
+    registerTree();
+    registerFiles();
+    registerSummary();
+    registerDescribe();
+    registered = true;
+  }
   return tools;
 }
 
