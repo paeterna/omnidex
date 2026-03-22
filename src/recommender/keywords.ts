@@ -10,6 +10,22 @@ const STOP_WORDS = new Set([
   'through', 'above', 'below', 'being', 'having', 'doing', 'get', 'set',
   'add', 'remove', 'update', 'delete', 'create', 'make', 'fix', 'change',
   'modify', 'use', 'need', 'want', 'try', 'let', 'put',
+  // Generic programming terms that flood results
+  'new', 'old', 'file', 'files', 'field', 'fields', 'line', 'lines', 'code', 'value', 'values',
+  'name', 'names', 'type', 'types', 'class', 'method', 'function', 'property', 'data',
+  'list', 'item', 'items', 'error', 'result', 'results', 'test', 'tests', 'check',
+  'show', 'display', 'page', 'view', 'model', 'service', 'module', 'config',
+  'import', 'export', 'default', 'return', 'null', 'true', 'false', 'string', 'number',
+  'boolean', 'object', 'array', 'map', 'key', 'id', 'index', 'count', 'size', 'length',
+  'start', 'end', 'first', 'last', 'next', 'prev', 'current', 'parent', 'child',
+  'open', 'close', 'read', 'write', 'load', 'save', 'send', 'receive',
+  'enable', 'disable', 'hide', 'run', 'stop', 'init', 'setup',
+  'handle', 'process', 'parse', 'format', 'convert', 'validate', 'render',
+  'look', 'find', 'search', 'filter', 'sort', 'group', 'merge', 'split',
+  'work', 'working', 'thing', 'things', 'way', 'part', 'point', 'case',
+  'like', 'sure', 'know', 'think', 'going', 'here', 'there',
+  'help', 'please', 'thanks', 'okay', 'right', 'wrong', 'good', 'bad',
+  'implement', 'implementation', 'refactor', 'debug', 'issue', 'bug', 'feature',
 ]);
 
 /**

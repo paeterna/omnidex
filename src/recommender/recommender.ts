@@ -85,11 +85,11 @@ export function recommend(db: Database.Database, query: string, limit = 5): Reco
   let maxGreps: number;
   let maxFiles: number;
 
-  if (topScore >= 10) {
+  if (topScore >= 20) {
     confidence = 'high';
     maxGreps = 0;
     maxFiles = 0;
-  } else if (topScore >= 4) {
+  } else if (topScore >= 8) {
     confidence = 'medium';
     maxGreps = 2;
     maxFiles = 2;
@@ -181,63 +181,87 @@ function phaseSymbolSearch(
   keywords: string[],
   scores: Map<number, FileScore>,
 ): void {
-  const itemSearch = db.prepare(`
-    SELECT i.term, o.file_id, f.path
+  const totalFiles = (db.prepare('SELECT COUNT(*) as c FROM files').get() as any).c;
+
+  // Pre-compute: for each keyword, find matching items with file counts (for IDF)
+  const itemFileCount = db.prepare(`
+    SELECT COUNT(DISTINCT o.file_id) as file_count
+    FROM items i
+    JOIN occurrences o ON i.id = o.item_id
+    WHERE i.term LIKE ? COLLATE NOCASE
+  `);
+
+  // Get unique files per keyword (not per occurrence!)
+  const itemFileSearch = db.prepare(`
+    SELECT DISTINCT o.file_id, f.path, i.term
     FROM items i
     JOIN occurrences o ON i.id = o.item_id
     JOIN files f ON o.file_id = f.id
-    WHERE i.term LIKE ?
+    WHERE i.term LIKE ? COLLATE NOCASE
+    LIMIT 200
   `);
 
   const typeSearch = db.prepare(`
-    SELECT t.name, t.file_id, f.path
+    SELECT t.name, t.kind, t.file_id, f.path
     FROM types t
     JOIN files f ON t.file_id = f.id
-    WHERE LOWER(t.name) LIKE ?
+    WHERE t.name LIKE ? COLLATE NOCASE
   `);
 
   const methodSearch = db.prepare(`
     SELECT m.name, m.file_id, f.path
     FROM methods m
     JOIN files f ON m.file_id = f.id
-    WHERE LOWER(m.name) LIKE ?
+    WHERE m.name LIKE ? COLLATE NOCASE
   `);
 
-  const allFiles = db.prepare('SELECT id, path FROM files').all() as Array<{ id: number; path: string }>;
-
   for (const keyword of keywords) {
-    // Item/occurrence search (contains mode)
     const pattern = `%${keyword}%`;
-    const itemResults = itemSearch.all(pattern) as Array<{ term: string; file_id: number; path: string }>;
 
-    for (const row of itemResults) {
-      const entry = getOrCreate(scores, row.file_id, row.path);
-      if (row.term.toLowerCase() === keyword) {
-        entry.score += 10; // exact match
-      } else {
-        entry.score += 5; // contains match
-      }
-    }
+    // Calculate IDF for this keyword
+    const docFreq = (itemFileCount.get(pattern) as any)?.file_count || 1;
+    const idf = Math.log(totalFiles / Math.max(docFreq, 1)) + 1; // +1 to avoid zero for very common terms
+    // Clamp IDF: minimum 0.5 (very common), maximum 5 (very rare)
+    const idfWeight = Math.max(0.5, Math.min(5, idf));
 
-    // Type name match bonus
-    const typeResults = typeSearch.all(pattern) as Array<{ name: string; file_id: number; path: string }>;
+    // 1. Type name match — highest signal (+20 * idf for exact, +12 * idf for contains)
+    const typeResults = typeSearch.all(pattern) as Array<{ name: string; kind: string; file_id: number; path: string }>;
     for (const row of typeResults) {
       const entry = getOrCreate(scores, row.file_id, row.path);
-      entry.score += 8;
+      const isExact = row.name.toLowerCase() === keyword.toLowerCase();
+      entry.score += Math.round((isExact ? 20 : 12) * idfWeight);
     }
 
-    // Method name match bonus
+    // 2. Method name match — second highest signal (+15 * idf for exact, +8 * idf for contains)
     const methodResults = methodSearch.all(pattern) as Array<{ name: string; file_id: number; path: string }>;
     for (const row of methodResults) {
       const entry = getOrCreate(scores, row.file_id, row.path);
-      entry.score += 6;
+      const isExact = row.name.toLowerCase() === keyword.toLowerCase();
+      entry.score += Math.round((isExact ? 15 : 8) * idfWeight);
     }
 
-    // File path contains keyword
-    for (const file of allFiles) {
-      if (file.path.toLowerCase().includes(keyword)) {
-        const entry = getOrCreate(scores, file.id, file.path);
-        entry.score += 3;
+    // 3. Item/symbol search — DISTINCT by file, weighted by IDF
+    // Score = 3 * idf per unique file that contains this keyword in any symbol
+    const itemResults = itemFileSearch.all(pattern) as Array<{ file_id: number; path: string; term: string }>;
+    // Deduplicate by file_id (the DISTINCT in SQL should handle this but be safe)
+    const seenFiles = new Set<number>();
+    for (const row of itemResults) {
+      if (seenFiles.has(row.file_id)) continue;
+      seenFiles.add(row.file_id);
+      const entry = getOrCreate(scores, row.file_id, row.path);
+      const isExact = row.term.toLowerCase() === keyword.toLowerCase();
+      entry.score += Math.round((isExact ? 5 : 3) * idfWeight);
+    }
+
+    // 4. File path match — only if keyword is >= 4 chars (skip short generic words)
+    if (keyword.length >= 4) {
+      // Use a targeted query instead of scanning all files
+      const pathResults = db.prepare(`
+        SELECT id, path FROM files WHERE LOWER(path) LIKE ? LIMIT 50
+      `).all(`%${keyword}%`) as Array<{ id: number; path: string }>;
+      for (const row of pathResults) {
+        const entry = getOrCreate(scores, row.id, row.path);
+        entry.score += Math.round(3 * idfWeight);
       }
     }
   }
@@ -259,8 +283,9 @@ function phaseGraphExpansion(
     WHERE e.target_file_id = ?
   `);
 
-  // Get top 5 files by score
+  // Only expand from top 5 scoring files (but require minimum score of 10)
   const top5 = [...scores.values()]
+    .filter(s => s.score >= 10)
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 
