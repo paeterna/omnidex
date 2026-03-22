@@ -1,0 +1,19 @@
+{
+  "planPath": "docs/plans/2026-03-22-omnidex-implementation.md",
+  "tasks": [
+    {"id": 0, "subject": "Task 0: Project Scaffold", "status": "pending"},
+    {"id": 1, "subject": "Task 1: Database Layer (SQLite)", "status": "pending", "blockedBy": [0]},
+    {"id": 2, "subject": "Task 2: File Scanner (Walk + Gitignore)", "status": "pending", "blockedBy": [0]},
+    {"id": 3, "subject": "Task 3: Tree-Sitter Parsers", "status": "pending", "blockedBy": [0]},
+    {"id": 4, "subject": "Task 4: Indexer (Scan + Parse + Store)", "status": "pending", "blockedBy": [1, 2, 3]},
+    {"id": 5, "subject": "Task 5: Recommender (omnidex_continue)", "status": "pending", "blockedBy": [4]},
+    {"id": 6, "subject": "Task 6: Core MCP Tools — Indexing & Search", "status": "pending", "blockedBy": [4]},
+    {"id": 7, "subject": "Task 7: Context Recommender MCP Tools", "status": "pending", "blockedBy": [5, 6]},
+    {"id": 8, "subject": "Task 8: Session, Notes & Tasks Tools", "status": "pending", "blockedBy": [1]},
+    {"id": 9, "subject": "Task 9: Token Usage Tracking", "status": "pending", "blockedBy": [1]},
+    {"id": 10, "subject": "Task 10: Integration, CLI, and Registration", "status": "pending", "blockedBy": [6, 7, 8, 9]},
+    {"id": 11, "subject": "Task 11: CLAUDE.md Policy Template", "status": "pending", "blockedBy": [10]},
+    {"id": 12, "subject": "Task 12: End-to-End Testing on HRIS", "status": "pending", "blockedBy": [10, 11]}
+  ],
+  "lastUpdated": "2026-03-22T00:00:00Z"
+}
