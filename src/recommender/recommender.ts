@@ -124,7 +124,9 @@ function phaseActionMemory(
   keywords: string[],
   limit: number,
 ): Omit<Recommendation, 'query'> | null {
-  const actions = db.prepare('SELECT * FROM actions ORDER BY created_at DESC LIMIT 50').all() as Array<{
+  // Only check very recent actions (last 5 minutes) to avoid stale cache pollution
+  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+  const actions = db.prepare('SELECT * FROM actions WHERE created_at > ? ORDER BY created_at DESC LIMIT 20').all(fiveMinutesAgo) as Array<{
     id: number;
     action_type: string;
     query: string | null;
@@ -137,16 +139,22 @@ function phaseActionMemory(
   const keywordSet = new Set(keywords);
   let bestScore = 0;
   let bestFiles: string[] = [];
+  let bestMatchRatio = 0;
 
   for (const action of actions) {
     if (!action.query || !action.files) continue;
 
     const actionKeywords = extractKeywords(action.query);
+    if (actionKeywords.length === 0) continue;
+
     const matchCount = actionKeywords.filter((k) => keywordSet.has(k)).length;
+    // Require high overlap ratio (>= 70% of keywords must match), not just raw count
+    const matchRatio = matchCount / Math.max(keywords.length, actionKeywords.length);
     const score = matchCount * 3;
 
-    if (score > bestScore) {
+    if (score > bestScore && matchRatio > bestMatchRatio) {
       bestScore = score;
+      bestMatchRatio = matchRatio;
       try {
         bestFiles = JSON.parse(action.files);
       } catch {
@@ -155,7 +163,8 @@ function phaseActionMemory(
     }
   }
 
-  if (bestScore >= 6 && bestFiles.length > 0) {
+  // Require both high score AND high match ratio to use cached results
+  if (bestScore >= 9 && bestMatchRatio >= 0.7 && bestFiles.length > 0) {
     const accessTypes = determineAccessTypes(db, bestFiles);
     const recommended = bestFiles.slice(0, limit).map((file) => ({
       file,
@@ -192,13 +201,14 @@ function phaseSymbolSearch(
   `);
 
   // Get unique files per keyword (not per occurrence!)
+  // Use a larger limit to avoid truncating results for common keywords
   const itemFileSearch = db.prepare(`
     SELECT DISTINCT o.file_id, f.path, i.term
     FROM items i
     JOIN occurrences o ON i.id = o.item_id
     JOIN files f ON o.file_id = f.id
     WHERE i.term LIKE ? COLLATE NOCASE
-    LIMIT 200
+    LIMIT 500
   `);
 
   const typeSearch = db.prepare(`
