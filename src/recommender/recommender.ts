@@ -17,6 +17,7 @@ interface FileScore {
   fileId: number;
   path: string;
   score: number;
+  matchedKeywords: Set<string>;
 }
 
 export function recommend(db: Database.Database, query: string, limit = 5): Recommendation {
@@ -76,7 +77,29 @@ export function recommend(db: Database.Database, query: string, limit = 5): Reco
   // Phase 3: Graph expansion
   phaseGraphExpansion(db, scores);
 
-  // Phase 4: Apply test file penalty — test files are useful but should rank below source files
+  // Phase 4: Conjunction bonus — files matching more unique keywords get a multiplier
+  // This ensures "API endpoint for departments" ranks files with both "api" AND "departments"
+  // above files that only match "api" heavily
+  if (keywords.length >= 2) {
+    // Only count non-compound keywords (the original query terms, not generated compounds)
+    // Compounds like "departmentversion" are derived, not independent signals
+    const primaryKeywordCount = keywords.filter((k) => !keywords.some((other) => other !== k && k.includes(other) && k.length > other.length)).length;
+    const minKeywords = Math.max(2, primaryKeywordCount);
+
+    for (const entry of scores.values()) {
+      const matchRatio = entry.matchedKeywords.size / minKeywords;
+      if (matchRatio >= 0.8) {
+        // Matches almost all keywords — strong conjunction bonus
+        entry.score = Math.round(entry.score * 1.5);
+      } else if (matchRatio >= 0.5) {
+        // Matches at least half — moderate bonus
+        entry.score = Math.round(entry.score * 1.2);
+      }
+      // Files matching < 50% of keywords get no bonus (their base score stands)
+    }
+  }
+
+  // Phase 5: Apply test file penalty — test files are useful but should rank below source files
   // unless the query explicitly mentions "test"
   const queryMentionsTest = keywords.some((k) => k === 'test' || k === 'tests' || k === 'testing' || k === 'spec');
   if (!queryMentionsTest) {
@@ -263,6 +286,7 @@ function phaseSymbolSearch(
       const entry = getOrCreate(scores, row.file_id, row.path);
       const isExact = row.name.toLowerCase() === keyword.toLowerCase();
       entry.score += Math.round((isExact ? 20 : 12) * idfWeight);
+      entry.matchedKeywords.add(keyword);
     }
 
     // 2. Method name match — second highest signal (+15 * idf for exact, +8 * idf for contains)
@@ -271,6 +295,7 @@ function phaseSymbolSearch(
       const entry = getOrCreate(scores, row.file_id, row.path);
       const isExact = row.name.toLowerCase() === keyword.toLowerCase();
       entry.score += Math.round((isExact ? 15 : 8) * idfWeight);
+      entry.matchedKeywords.add(keyword);
     }
 
     // 3. Item/symbol search — DISTINCT by file, weighted by IDF
@@ -284,6 +309,7 @@ function phaseSymbolSearch(
       const entry = getOrCreate(scores, row.file_id, row.path);
       const isExact = row.term.toLowerCase() === keyword.toLowerCase();
       entry.score += Math.round((isExact ? 5 : 3) * idfWeight);
+      entry.matchedKeywords.add(keyword);
     }
 
     // 4. File path match — only if keyword is >= 4 chars (skip short generic words)
@@ -295,6 +321,7 @@ function phaseSymbolSearch(
       for (const row of pathResults) {
         const entry = getOrCreate(scores, row.id, row.path);
         entry.score += Math.round(3 * idfWeight);
+        entry.matchedKeywords.add(keyword);
       }
     }
   }
@@ -380,7 +407,7 @@ function determineAccessTypes(
 function getOrCreate(scores: Map<number, FileScore>, fileId: number, path: string): FileScore {
   let entry = scores.get(fileId);
   if (!entry) {
-    entry = { fileId, path, score: 0 };
+    entry = { fileId, path, score: 0, matchedKeywords: new Set() };
     scores.set(fileId, entry);
   }
   return entry;
